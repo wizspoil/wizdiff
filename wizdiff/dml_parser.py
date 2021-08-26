@@ -144,7 +144,7 @@ def parse_record(data: TypedBytesReader, record_template):
 
 
 def consume_data(reader: TypedFileReader):
-    records = defaultdict(lambda: list())
+    records = defaultdict(list)
     current_record_template = None
     current_record_name = None
 
