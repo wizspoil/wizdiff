@@ -7,6 +7,7 @@ authors = ["StarrFox <starrfox6312@gmail.com>"]
 [tool.poetry.dependencies]
 python = "^3.10"
 click = "^8.0.1"
+requests = "^2.26.0"
 
 [tool.poetry.dev-dependencies]
 

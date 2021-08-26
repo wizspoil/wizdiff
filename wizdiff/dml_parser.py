@@ -130,7 +130,7 @@ def parse_record(data: TypedBytesReader, record_template):
         match format_type:
             case "wstring":
                 # TODO: this works?
-                value = data.read_str("utf-16")
+                value = data.read_str("utf-16-le")
 
             case "string":
                 value = data.read_str()
@@ -143,7 +143,7 @@ def parse_record(data: TypedBytesReader, record_template):
     return record
 
 
-def consume_data(reader: TypedFileReader):
+def consume_data(reader: TypedBytesReader | TypedFileReader):
     records = defaultdict(list)
     current_record_template = None
     current_record_name = None
@@ -180,7 +180,7 @@ def consume_data(reader: TypedFileReader):
     return records
 
 
-def parse_record_file(to_parser: str | Path):
+def parse_records_from_file(to_parser: str | Path):
     to_parser = Path(to_parser)
 
     # TODO: does SEEK_END work with this?
@@ -188,3 +188,8 @@ def parse_record_file(to_parser: str | Path):
     records = consume_data(typed_reader)
 
     return records
+
+
+def parse_records_from_bytes(data: bytes):
+    reader = TypedBytesReader(data)
+    return consume_data(reader)

@@ -1,6 +1,8 @@
 import click
+from pathlib import Path
 
-from .utils import get_latest_file_list_url, get_reversion_from_url
+from .file_update_handler import FileUpdateHandler
+from .db import init_db
 
 
 @click.command()
@@ -8,10 +10,13 @@ def main():
     """
     wizdiff
     """
-    latest_file_url = get_latest_file_list_url()
-    click.echo(f"{latest_file_url=}")
-    reversion = get_reversion_from_url(latest_file_url)
-    click.echo(f"{reversion=}")
+    if not Path("wizdiff.db").exists():
+        # add initial data to compare here
+        print("initing db")
+        init_db()
+
+    update_handler = FileUpdateHandler()
+    update_handler.update_loop()
 
 
 if __name__ == "__main__":
