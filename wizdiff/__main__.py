@@ -10,12 +10,14 @@ def main():
     """
     wizdiff
     """
+    update_handler = FileUpdateHandler()
+
     if not Path("wizdiff.db").exists():
         # add initial data to compare here
         print("initing db")
         init_db()
+        update_handler.init_db()
 
-    update_handler = FileUpdateHandler()
     update_handler.update_loop()
 
 
