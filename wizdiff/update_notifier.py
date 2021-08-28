@@ -167,8 +167,8 @@ class UpdateNotifier:
 
 
 class WebhookUpdateNotifier(UpdateNotifier):
-    def __init__(self, webhook_url: str, thread_id: int = None):
-        super().__init__()
+    def __init__(self, webhook_url: str, thread_id: int = None, *, sleep_time: float = 3_600):
+        super().__init__(sleep_time=sleep_time)
         self.webhook_url = webhook_url
         self.thread_id = thread_id
 

@@ -5,13 +5,14 @@ from .update_notifier import WebhookUpdateNotifier
 
 
 @click.command()
+@click.option("--sleep-time", type=int, default=3_600)
 @click.option("--webhook")
-@click.option("--thread_id")
-def main(webhook, thread_id):
+@click.option("--thread")
+def main(sleep_time, webhook, thread):
     """
     wizdiff
     """
-    update_handler = WebhookUpdateNotifier(webhook, thread_id)
+    update_handler = WebhookUpdateNotifier(webhook, thread, sleep_time=sleep_time)
 
     if not Path("wizdiff.db").exists():
         # add initial data to compare here
