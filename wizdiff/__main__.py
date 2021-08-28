@@ -1,15 +1,17 @@
 import click
 from pathlib import Path
 
-from .update_notifier import UpdateNotifier
+from .update_notifier import WebhookUpdateNotifier
 
 
 @click.command()
-def main():
+@click.option("--webhook")
+@click.option("--thread_id")
+def main(webhook, thread_id):
     """
     wizdiff
     """
-    update_handler = UpdateNotifier()
+    update_handler = WebhookUpdateNotifier(webhook, thread_id)
 
     if not Path("wizdiff.db").exists():
         # add initial data to compare here

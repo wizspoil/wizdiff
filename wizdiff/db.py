@@ -24,9 +24,9 @@ CREATE TABLE IF NOT EXISTS WadFileInfo (
     crc INTEGER,
     size_ INTEGER,
     revision TEXT,
-    revision_name TEXT,
+    name TEXT,
     wad_name TEXT,
-    PRIMARY KEY (revision, revision_name, wad_name)
+    PRIMARY KEY (revision, name, wad_name)
 );
 """.strip()
 
@@ -82,22 +82,22 @@ class WizDiffDatabase:
 
     def check_if_versioned_file_updated(self, new_crc: int, new_size: int, old_revision: str, name: str):
         cur = self._connection.execute(
-            "SELECT crc, size_ FROM VersionedFileInfo WHERE revision is (?) and revision_name is (?);",
+            "SELECT crc, size_ FROM VersionedFileInfo WHERE revision is (?) and name is (?);",
             (old_revision, name),
         )
         old_ver = cur.fetchone()
 
-        # new file
         if old_ver is None:
-            return FileUpdateType.new
+            print(f"new file {name} with revision {old_revision}")
+            return FileUpdateType.new, (None, None)
 
         old_crc, old_size = old_ver
 
         if old_crc != new_crc or old_size != new_size:
-            return FileUpdateType.changed
+            return FileUpdateType.changed, (old_crc, old_size)
 
         else:
-            return FileUpdateType.unchanged
+            return FileUpdateType.unchanged, (old_crc, old_size)
 
     def get_all_versioned_files_from_revision(self, revision: str) -> List[tuple]:
         cur = self._connection.execute("SELECT * FROM VersionedFileInfo WHERE revision is (?);", (revision,))

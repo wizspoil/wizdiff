@@ -34,6 +34,8 @@ class CreatedFileDelta(FileDelta):
     """
     new_crc: int
     new_size: int
+    old_crc: int
+    old_size: int
 
 
 @dataclass()
@@ -43,3 +45,5 @@ class ChangedFileDelta(FileDelta):
     """
     new_crc: int
     new_size: int
+    old_crc: int
+    old_size: int
