@@ -42,19 +42,27 @@ def get_revision_from_url(url: str):
 
 
 def get_url_data(url: str, *, data_range: tuple[int, int] = None) -> bytes:
-    headers = {}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0"
+    }
 
     if data_range:
         headers["Range"] = f"bytes={data_range[0]}-{data_range[1]}"
 
     with requests.get(url, headers=headers) as res:
+        res.raise_for_status()
         return res.content
 
 
 def get_wad_journal_crcs(wad_url: str) -> dict:
     # .hdr.gz = header gzipped
     wad_header_data = get_url_data(wad_url + ".hdr.gz")
-    wad_header_data = gzip.decompress(wad_header_data)
+
+    try:
+        wad_header_data = gzip.decompress(wad_header_data)
+    except gzip.BadGzipFile:
+        pass
+
     signature, version, file_count = struct.unpack("<5sII", wad_header_data[:13])
 
     if signature != b"KIWAD":
@@ -81,4 +89,6 @@ def get_wad_journal_crcs(wad_url: str) -> dict:
 
 
 if __name__ == "__main__":
-    print(get_patch_urls())
+    print(get_wad_journal_crcs("http://versionec.us.wizard101.com/WizPatcher/"
+                               "V_r703991.Wizard_1_460/LatestBuild/Data/GameDa"
+                               "ta/Arcanum-Interiors-AR_Z01_AstralPlane_Repeat.wad"))

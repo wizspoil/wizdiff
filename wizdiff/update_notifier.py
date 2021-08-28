@@ -1,15 +1,20 @@
 import time
 from datetime import datetime
 from typing import Optional, Tuple
+from gzip import BadGzipFile
 
 import requests
 from loguru import logger
 
-from .utils import get_patch_urls, get_revision_from_url, get_url_data
+from .utils import get_patch_urls, get_revision_from_url, get_url_data, get_wad_journal_crcs
 from .db import WizDiffDatabase, FileUpdateType
 from .delta import DeletedFileDelta, ChangedFileDelta, CreatedFileDelta, FileDelta
 
 from .dml_parser import parse_records_from_bytes
+
+
+JOURNAL_RETRIES = 10
+JOURNAL_SLEEP_TIME = 60
 
 
 class UpdateNotifier:
@@ -17,14 +22,29 @@ class UpdateNotifier:
         self.sleep_time = sleep_time
         self.db = WizDiffDatabase()
 
+    @staticmethod
+    def _get_wad_journal(wad_url: str):
+        for _ in range(JOURNAL_RETRIES):
+            try:
+                return get_wad_journal_crcs(wad_url)
+            except requests.exceptions.HTTPError as error:
+                logger.info(f"Got non-200 error code {error}")
+            except BadGzipFile as error:
+                logger.debug(f"Couldn't decompress data from {wad_url} as gz data; error: {error}")
+
+            logger.info(f"Retrying {wad_url} in {JOURNAL_SLEEP_TIME} seconds")
+            time.sleep(JOURNAL_SLEEP_TIME)
+
+        raise ValueError(f"Could not fetch journal for {wad_url}")
+
     def init_db(self):
         self.db.init_database()
         file_list_url, base_url = get_patch_urls()
         revision = get_revision_from_url(file_list_url)
         self.add_revision(revision)
-        self.fill_db(file_list_url, revision)
+        self.fill_db(file_list_url, base_url, revision)
 
-    def fill_db(self, file_list_url: str, revision: str):
+    def fill_db(self, file_list_url: str, base_url: str, revision: str):
         file_list_records = self.get_file_list_records(file_list_url)
 
         for table_name, records in file_list_records.items():
@@ -33,10 +53,22 @@ class UpdateNotifier:
                 continue
 
             for record in records:
-                logger.debug(f"Filling db with {record}")
+                name = record["SrcFileName"]
+                logger.debug(f"Filling db with versioned file {name}")
+
                 self.db.add_versioned_file_info(
-                    record["CRC"], record["Size"], revision, record["SrcFileName"]
+                    record["CRC"], record["Size"], revision, name
                 )
+
+                # wad archive
+                if name.endswith(".wad"):
+                    wad_url = base_url + "/" + name
+                    journal_crcs = self._get_wad_journal(wad_url)
+
+                    for inner_file, (crc, size) in journal_crcs.items():
+                        logger.debug(f"Filling db with wad inner file {inner_file}")
+
+                        self.db.add_wad_file_info(crc, size, revision, inner_file, name)
 
     def update_loop(self):
         while True:
@@ -71,6 +103,7 @@ class UpdateNotifier:
         revision = get_revision_from_url(file_list_url)
         self.add_revision(revision)
 
+        # TODO: dont do this here
         self.fill_db(file_list_url, revision_name)
 
     def check_if_versioned_files_changed(
@@ -141,6 +174,11 @@ class UpdateNotifier:
                 else:
                     logger.debug(f"Unchanged file {name}")
 
+                # need to be versioned even if unchanged
+                self.db.add_versioned_file_info(
+                    record["CRC"], record["Size"], new_revision, record["SrcFileName"]
+                )
+
         for crc, size, revision, name in last_revision_files:
             if name not in new_file_names:
                 delta = DeletedFileDelta(
@@ -151,6 +189,9 @@ class UpdateNotifier:
                     old_size=size
                 )
                 self.versioned_file_update(delta)
+
+    def check_if_wad_files_updated(self):
+        pass
 
     def revision_update(self, revision: str):
         """

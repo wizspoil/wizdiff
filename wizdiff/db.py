@@ -65,9 +65,6 @@ class WizDiffDatabase:
         return cur.fetchone() is None
 
     def add_versioned_file_info(self, crc: int, size: int, revision: str, name: str):
-        if crc < 0:
-            raise ValueError("CRC cannot be negative")
-
         if size < 0:
             raise ValueError("Size cannot be negative")
 
@@ -88,7 +85,6 @@ class WizDiffDatabase:
         old_ver = cur.fetchone()
 
         if old_ver is None:
-            print(f"new file {name} with revision {old_revision}")
             return FileUpdateType.new, (None, None)
 
         old_crc, old_size = old_ver
@@ -102,3 +98,38 @@ class WizDiffDatabase:
     def get_all_versioned_files_from_revision(self, revision: str) -> List[tuple]:
         cur = self._connection.execute("SELECT * FROM VersionedFileInfo WHERE revision is (?);", (revision,))
         return cur.fetchall()
+
+    def add_wad_file_info(self, crc: int, size: int, revision: str, file_name: str, wad_name: str):
+        if size < 0:
+            raise ValueError("Size cannot be negative")
+
+        if not file_name:
+            raise ValueError("Name cannot be empty")
+
+        if not wad_name:
+            raise ValueError(f"Wad name cannot be empty")
+
+        self._connection.execute(
+            "INSERT INTO WadFileInfo (crc, size_, revision, name, wad_name) VALUES (?, ?, ?, ?, ?);",
+            (crc, size, revision, file_name, wad_name),
+        )
+        self._connection.commit()
+
+    # TODO: maybe merge this and check_if_versioned_file_updated together (past first line is duplicated)
+    def check_if_wad_file_updated(self, new_crc: int, new_size: int, old_revision: str, file_name: str, wad_name: str):
+        cur = self._connection.execute(
+            "SELECT crc, size_ FROM WadFileInfo WHERE revision is (?) and name is (?) and wad_name is (?);",
+            (old_revision, file_name, wad_name),
+        )
+        old_ver = cur.fetchone()
+
+        if old_ver is None:
+            return FileUpdateType.new, (None, None)
+
+        old_crc, old_size = old_ver
+
+        if old_crc != new_crc or old_size != new_size:
+            return FileUpdateType.changed, (old_crc, old_size)
+
+        else:
+            return FileUpdateType.unchanged, (old_crc, old_size)
