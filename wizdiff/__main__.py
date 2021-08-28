@@ -1,8 +1,7 @@
 import click
 from pathlib import Path
 
-from .file_update_handler import FileUpdateHandler
-from .db import init_db
+from .update_notifier import UpdateNotifier
 
 
 @click.command()
@@ -10,12 +9,11 @@ def main():
     """
     wizdiff
     """
-    update_handler = FileUpdateHandler()
+    update_handler = UpdateNotifier()
 
     if not Path("wizdiff.db").exists():
         # add initial data to compare here
-        print("initing db")
-        init_db()
+        click.echo("No database found creating a new one")
         update_handler.init_db()
 
     update_handler.update_loop()

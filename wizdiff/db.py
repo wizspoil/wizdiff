@@ -1,11 +1,15 @@
 import sqlite3
-from typing import Optional
+from typing import List, Optional
+from functools import cached_property
+from datetime import datetime
+from enum import Enum
+
 
 TABLE_SCRIPT = """
 CREATE TABLE IF NOT EXISTS RevisionInfo (
-    name TEXT,
+    revision_name TEXT,
     date_ DATE,
-    PRIMARY KEY (name, date_)
+    PRIMARY KEY (revision_name)
 );
 
 CREATE TABLE IF NOT EXISTS VersionedFileInfo (
@@ -20,80 +24,81 @@ CREATE TABLE IF NOT EXISTS WadFileInfo (
     crc INTEGER,
     size_ INTEGER,
     revision TEXT,
-    name TEXT,
+    revision_name TEXT,
     wad_name TEXT,
-    PRIMARY KEY (revision, name, wad_name)
+    PRIMARY KEY (revision, revision_name, wad_name)
 );
 """.strip()
 
 
-def get_connection() -> sqlite3.Connection:
-    return sqlite3.connect("wizdiff.db")
+class FileUpdateType(Enum):
+    changed = 1
+    unchanged = 2
+    new = 3
 
 
-def init_db():
-    with get_connection() as conn:
-        conn.executescript(TABLE_SCRIPT)
-        conn.commit()
+class WizDiffDatabase:
+    def __init__(self, sqlite_connection_name: str = "wizdiff.db"):
+        self.sqlite_connection_name = sqlite_connection_name
 
+    @cached_property
+    def _connection(self) -> sqlite3.Connection:
+        return sqlite3.connect(self.sqlite_connection_name)
 
-def add_revision_info(name: str, date):
-    with get_connection() as conn:
-        conn.execute("INSERT INTO RevisionInfo (name, date_) VALUES (?, ?);", (name, date))
-        conn.commit()
+    def init_database(self):
+        self._connection.executescript(TABLE_SCRIPT)
+        self._connection.commit()
 
+    def add_revision_info(self, name: str, date: datetime = None):
+        if date is None:
+            date = datetime.utcnow()
 
-def get_latest_revision() -> Optional[tuple[str, "datetime"]]:
-    with get_connection() as conn:
-        cur = conn.execute("SELECT * FROM RevisionInfo ORDER BY date_ DESC;")
+        self._connection.execute("INSERT INTO RevisionInfo (revision_name, date_) VALUES (?, ?);", (name, date))
+        self._connection.commit()
+
+    def get_latest_revision(self) -> Optional[str]:
+        cur = self._connection.execute("SELECT revision_name FROM RevisionInfo ORDER BY date_ DESC;")
         return cur.fetchone()
 
+    def check_if_new_revision(self, name: str):
+        cur = self._connection.execute("SELECT * FROM RevisionInfo WHERE revision_name = ?;", (name,))
+        return cur.fetchone() is None
 
-def check_if_new_revision(name: str):
-    with get_connection() as conn:
-        cur = conn.execute("SELECT * FROM RevisionInfo WHERE name = ?;", (name,))
-        res = cur.fetchone()
+    def add_versioned_file_info(self, crc: int, size: int, revision: str, name: str):
+        if crc < 0:
+            raise ValueError("CRC cannot be negative")
 
-    return res is None
+        if size < 0:
+            raise ValueError("Size cannot be negative")
 
+        if not name:
+            raise ValueError("Name cannot be empty")
 
-def add_versioned_file_info(crc: int, size: int, revision: str, name: str):
-    with get_connection() as conn:
-        conn.execute(
+        self._connection.execute(
             "INSERT INTO VersionedFileInfo (crc, size_, revision, name) VALUES (?, ?, ?, ?);",
             (crc, size, revision, name),
         )
-        conn.commit()
+        self._connection.commit()
 
-
-def check_if_versioned_file_updated(new_crc: int, new_size: int, old_revision: str, name: str):
-    """
-    True -> changed file
-    False -> unchanged file
-    None -> new file
-    """
-    with get_connection() as conn:
-        cur = conn.execute(
-            "SELECT crc, size_ FROM VersionedFileInfo WHERE revision is (?) and name is (?);",
+    def check_if_versioned_file_updated(self, new_crc: int, new_size: int, old_revision: str, name: str):
+        cur = self._connection.execute(
+            "SELECT crc, size_ FROM VersionedFileInfo WHERE revision is (?) and revision_name is (?);",
             (old_revision, name),
         )
         old_ver = cur.fetchone()
 
-    # new file
-    if old_ver is None:
-        return None
+        # new file
+        if old_ver is None:
+            return FileUpdateType.new
 
-    old_crc, old_size = old_ver
+        old_crc, old_size = old_ver
 
-    return old_crc != new_crc or old_size != new_size
+        if old_crc != new_crc or old_size != new_size:
+            return FileUpdateType.changed
 
+        else:
+            return FileUpdateType.unchanged
 
-if __name__ == "__main__":
-    init_db()
-    from datetime import datetime
-    add_revision_info("latest2", datetime.utcnow())
-    # print(get_revision_info("latest2"))
-    print(get_latest_revision())
-
-    # add_versioned_file_info(123123, 100, "latest", "Root")
-    # check_if_versioned_file_updated(123123, 100, "latest2", "Root")
+    def get_all_versioned_files_from_revision(self, revision: str) -> List[tuple]:
+        cur = self._connection.execute("SELECT * FROM VersionedFileInfo WHERE revision is (?);", (revision,))
+        return cur.fetchall()
