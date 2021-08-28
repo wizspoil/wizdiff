@@ -47,14 +47,14 @@ class WizDiffDatabase:
 
     def init_database(self):
         self._connection.executescript(TABLE_SCRIPT)
-        self._connection.commit()
+        self.commit()
 
     def add_revision_info(self, name: str, date: datetime = None):
         if date is None:
             date = datetime.utcnow()
 
         self._connection.execute("INSERT INTO RevisionInfo (revision_name, date_) VALUES (?, ?);", (name, date))
-        self._connection.commit()
+        self.commit()
 
     def get_latest_revision(self) -> Optional[str]:
         cur = self._connection.execute("SELECT revision_name FROM RevisionInfo ORDER BY date_ DESC;")
@@ -75,7 +75,6 @@ class WizDiffDatabase:
             "INSERT INTO VersionedFileInfo (crc, size_, revision, name) VALUES (?, ?, ?, ?);",
             (crc, size, revision, name),
         )
-        self._connection.commit()
 
     def check_if_versioned_file_updated(self, new_crc: int, new_size: int, old_revision: str, name: str):
         cur = self._connection.execute(
@@ -113,7 +112,6 @@ class WizDiffDatabase:
             "INSERT INTO WadFileInfo (crc, size_, revision, name, wad_name) VALUES (?, ?, ?, ?, ?);",
             (crc, size, revision, file_name, wad_name),
         )
-        self._connection.commit()
 
     # TODO: maybe merge this and check_if_versioned_file_updated together (past first line is duplicated)
     def check_if_wad_file_updated(self, new_crc: int, new_size: int, old_revision: str, file_name: str, wad_name: str):
@@ -133,3 +131,9 @@ class WizDiffDatabase:
 
         else:
             return FileUpdateType.unchanged, (old_crc, old_size)
+
+    def commit(self):
+        self._connection.commit()
+
+    def vacuum(self):
+        self._connection.execute("VACUUM;")

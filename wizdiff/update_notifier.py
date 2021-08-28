@@ -6,7 +6,8 @@ from gzip import BadGzipFile
 import requests
 from loguru import logger
 
-from .utils import get_patch_urls, get_revision_from_url, get_url_data, get_wad_journal_crcs
+from .utils import get_revision_from_url
+from .webdriver import WebDriver
 from .db import WizDiffDatabase, FileUpdateType
 from .delta import DeletedFileDelta, ChangedFileDelta, CreatedFileDelta, FileDelta
 
@@ -21,12 +22,12 @@ class UpdateNotifier:
     def __init__(self, *, sleep_time: float = 3_600):
         self.sleep_time = sleep_time
         self.db = WizDiffDatabase()
+        self.webdriver = WebDriver()
 
-    @staticmethod
-    def _get_wad_journal(wad_url: str):
+    def _get_wad_journal(self, wad_url: str):
         for _ in range(JOURNAL_RETRIES):
             try:
-                return get_wad_journal_crcs(wad_url)
+                return self.webdriver.get_wad_journal_crcs(wad_url)
             except requests.exceptions.HTTPError as error:
                 logger.info(f"Got non-200 error code {error}")
             except BadGzipFile as error:
@@ -39,7 +40,7 @@ class UpdateNotifier:
 
     def init_db(self):
         self.db.init_database()
-        file_list_url, base_url = get_patch_urls()
+        file_list_url, base_url = self.webdriver.get_patch_urls()
         revision = get_revision_from_url(file_list_url)
         self.add_revision(revision)
         self.fill_db(file_list_url, base_url, revision)
@@ -69,10 +70,11 @@ class UpdateNotifier:
                         logger.debug(f"Filling db with wad inner file {inner_file}")
 
                         self.db.add_wad_file_info(crc, size, revision, inner_file, name)
+        self.db.commit()
 
     def update_loop(self):
         while True:
-            file_list_url, base_url = get_patch_urls()
+            file_list_url, base_url = self.webdriver.get_patch_urls()
             revision = get_revision_from_url(file_list_url)
 
             if self.db.check_if_new_revision(revision):
@@ -88,9 +90,8 @@ class UpdateNotifier:
         logger.info(f"Adding revision {name}")
         self.db.add_revision_info(name, datetime.utcnow())
 
-    @staticmethod
-    def get_file_list_records(file_list_url: str):
-        file_list_data = get_url_data(file_list_url)
+    def get_file_list_records(self, file_list_url: str):
+        file_list_data = self.webdriver.get_url_data(file_list_url)
         return parse_records_from_bytes(file_list_data)
 
     def new_revision(self, revision_name: str, file_list_url: str, base_url: str):
@@ -178,6 +179,7 @@ class UpdateNotifier:
                 self.db.add_versioned_file_info(
                     record["CRC"], record["Size"], new_revision, record["SrcFileName"]
                 )
+        self.db.commit()
 
         for crc, size, revision, name in last_revision_files:
             if name not in new_file_names:
