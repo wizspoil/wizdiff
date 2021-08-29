@@ -4,7 +4,7 @@ from pathlib import Path
 import click
 from loguru import logger
 
-from .update_notifier import WebhookUpdateNotifier
+from .update_notifier import UpdateNotifier, WebhookUpdateNotifier
 
 
 logger.enable("wizdiff")

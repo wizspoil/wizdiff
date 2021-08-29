@@ -153,6 +153,7 @@ class UpdateNotifier:
         )
 
         new_file_names = []
+        unchanged_wads = []
 
         for table_name, records in records.items():
             # meta tables
@@ -256,13 +257,15 @@ class UpdateNotifier:
 
                 else:
                     if name.endswith(".wad"):
-                        # this is so the wad inner files are updated to the latest revision
-                        self.db.update_wad_file_infos_revision_with_wad_name(name, new_revision)
+                        unchanged_wads.append(name)
 
                 # need to be versioned even if unchanged
                 self.db.add_versioned_file_info(
                     record["CRC"], record["Size"], new_revision, record["SrcFileName"]
                 )
+
+        # this is so the wad inner files are updated to the latest revision
+        self.db.mass_update_wad_file_infos_revision_with_wad_names(unchanged_wads, new_revision)
 
         self.db.commit()
 
@@ -480,8 +483,3 @@ class WebhookUpdateNotifier(UpdateNotifier):
 
     def notify_wad_file_update(self, delta: FileDelta):
         self.send_to_all_webhooks(str(delta))
-
-
-if __name__ == "__main__":
-    updater = UpdateNotifier()
-    updater.add_revision("debug")

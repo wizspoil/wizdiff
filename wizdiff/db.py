@@ -162,6 +162,17 @@ class WizDiffDatabase:
             (new_revision, wad_name)
         )
 
+    def mass_update_wad_file_infos_revision_with_wad_names(self, wad_names: List[str], new_revision: str):
+        # sqlite module doesn't have the best support for the `in` condition
+        value_placers = ",".join("?" * len(wad_names))
+
+        self._connection.execute(
+            f"UPDATE WadFileInfo SET revision = (?) WHERE wad_name in ({value_placers})",
+            (new_revision, *wad_names)
+        )
+
+        self.commit()
+
     def delete_wad_file_infos_with_revision(self, revision_name: str):
         self._connection.execute(
             "DELETE FROM WadFileInfo WHERE revision is (?);", (revision_name,)
