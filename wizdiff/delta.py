@@ -63,6 +63,7 @@ class WadInnerFileInfo:
     crc: int
     compressed_size: int
     is_compressed: bool
+    file_offset: int
     old_size: Optional[int]
     old_crc: Optional[int]
 

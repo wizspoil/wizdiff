@@ -26,7 +26,7 @@ JOURNAL_RETRIES = 10
 JOURNAL_SLEEP_TIME = 60
 
 
-DEBUG_REVISION = None
+DEBUG_REVISION = "test_revision"
 
 
 class UpdateNotifier:
@@ -81,10 +81,11 @@ class UpdateNotifier:
                     wad_url = base_url + "/" + name
                     journal_crcs = self._get_wad_journal(wad_url)
 
-                    for inner_file, (crc, size, compressed_size, is_compressed) in journal_crcs.items():
+                    for inner_file, (file_offset, crc, size, compressed_size, is_compressed) in journal_crcs.items():
                         logger.debug(f"Filling db with wad inner file {inner_file}")
 
                         self.db.add_wad_file_info(
+                            file_offset,
                             crc,
                             size,
                             compressed_size,
@@ -280,14 +281,15 @@ class UpdateNotifier:
                         deleted_inner_files.append(
                             #  0 crc, 1 size_, 2 name, 3 file_offset, 4 compressed_size, 5 is_compressed
                             WadInnerFileInfo(
-                                inner_file[2],
-                                name,
-                                0,
-                                0,
-                                inner_file[4],
-                                inner_file[5],
-                                inner_file[1],
-                                inner_file[0]
+                                name=inner_file[2],
+                                wad_name=name,
+                                size=0,
+                                crc=0,
+                                compressed_size=inner_file[4],
+                                is_compressed=inner_file[5],
+                                file_offset=inner_file[3],
+                                old_size=inner_file[1],
+                                old_crc=inner_file[0],
                             )
                         )
 
@@ -327,18 +329,19 @@ class UpdateNotifier:
         created_inner_files = []
         changed_inner_files = []
 
-        for inner_file, (crc, size, compressed_size, is_compressed) in journal_crcs.items():
+        for inner_file, (file_offset, crc, size, compressed_size, is_compressed) in journal_crcs.items():
             res, (old_crc, old_size) = self.db.check_if_wad_file_updated(crc, size, old_revision, inner_file, wad_name)
 
             inner_file_info = WadInnerFileInfo(
-                inner_file,
-                wad_name,
-                size,
-                crc,
-                compressed_size,
-                is_compressed,
-                old_size,
-                old_crc
+                name=inner_file,
+                wad_name=wad_name,
+                size=size,
+                crc=crc,
+                compressed_size=compressed_size,
+                is_compressed=is_compressed,
+                file_offset=file_offset,
+                old_size=old_size,
+                old_crc=old_crc
             )
 
             # TODO: 3.10 switch to match
@@ -353,6 +356,7 @@ class UpdateNotifier:
                 pass
 
             self.db.add_wad_file_info(
+                file_offset,
                 crc,
                 size,
                 compressed_size,
@@ -369,14 +373,15 @@ class UpdateNotifier:
                 deleted_inner_files.append(
                     #  0 crc, 1 size_, 2 name, 3 file_offset, 4 compressed_size, 5 is_compressed
                     WadInnerFileInfo(
-                        inner_file[2],
-                        wad_name,
-                        0,
-                        0,
-                        inner_file[4],
-                        inner_file[5],
-                        inner_file[1],
-                        inner_file[0]
+                        name=inner_file[2],
+                        wad_name=wad_name,
+                        size=0,
+                        crc=0,
+                        compressed_size=inner_file[4],
+                        is_compressed=inner_file[5],
+                        file_offset=inner_file[3],
+                        old_size=inner_file[1],
+                        old_crc=inner_file[0],
                     )
                 )
 

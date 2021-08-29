@@ -131,6 +131,7 @@ class WizDiffDatabase:
 
     def add_wad_file_info(
         self,
+        file_offset: int,
         crc: int,
         size: int,
         compressed_size: int,
@@ -149,9 +150,10 @@ class WizDiffDatabase:
             raise ValueError(f"Wad name cannot be empty")
 
         self._connection.execute(
-            "INSERT INTO WadFileInfo (crc, size_, compressed_size, is_compressed, revision, name, wad_name) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?);",
-            (crc, size, compressed_size, is_compressed, revision, file_name, wad_name),
+            "INSERT INTO WadFileInfo "
+            "(file_offset, crc, size_, compressed_size, is_compressed, revision, name, wad_name) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?);",
+            (file_offset, crc, size, compressed_size, is_compressed, revision, file_name, wad_name),
         )
 
     def update_wad_file_infos_revision_with_wad_name(self, wad_name: str, new_revision: str):
@@ -159,7 +161,6 @@ class WizDiffDatabase:
             "UPDATE WadFileInfo SET revision = (?) WHERE wad_name is (?);",
             (new_revision, wad_name)
         )
-        self.commit()
 
     def delete_wad_file_infos_with_revision(self, revision_name: str):
         self._connection.execute(

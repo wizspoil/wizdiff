@@ -88,6 +88,6 @@ class WebDriver:
             name = name_data.decode()[:-1]
             data_offset += JOURNAL_ENTRY_SIZE + name_length
 
-            res[name] = (crc, size, zsize, is_zip)
+            res[name] = (offset, crc, size, zsize, is_zip)
 
         return res
