@@ -26,9 +26,6 @@ JOURNAL_RETRIES = 10
 JOURNAL_SLEEP_TIME = 60
 
 
-_DEBUG_REVISION = None
-
-
 class UpdateNotifier:
     def __init__(self, *, sleep_time: float = 3_600, delete_old_revisions: bool = True):
         self.sleep_time = sleep_time
@@ -104,9 +101,6 @@ class UpdateNotifier:
 
             if self.db.check_if_new_revision(revision):
                 self.new_revision(revision, file_list_url, base_url)
-
-            elif DEBUG_REVISION:
-                self.new_revision(DEBUG_REVISION, file_list_url, base_url)
 
             else:
                 logger.info(f"No new revision found")
@@ -486,3 +480,8 @@ class WebhookUpdateNotifier(UpdateNotifier):
 
     def notify_wad_file_update(self, delta: FileDelta):
         self.send_to_all_webhooks(str(delta))
+
+
+if __name__ == "__main__":
+    updater = UpdateNotifier()
+    updater.add_revision("debug")
