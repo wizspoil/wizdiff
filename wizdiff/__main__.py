@@ -1,7 +1,12 @@
-import click
 from pathlib import Path
 
+import click
+from loguru import logger
+
 from .update_notifier import WebhookUpdateNotifier
+
+
+logger.enable("wizdiff")
 
 
 @click.command()
@@ -12,10 +17,10 @@ def main(sleep_time, webhook, thread):
     """
     wizdiff
     """
-    update_handler = WebhookUpdateNotifier(webhook, thread, sleep_time=sleep_time)
+    update_handler = WebhookUpdateNotifier([webhook], thread, sleep_time=sleep_time)
 
     if not Path("wizdiff.db").exists():
-        # add initial data to compare here
+        # add initial data to compare
         click.echo("No database found creating a new one")
         update_handler.init_db()
 

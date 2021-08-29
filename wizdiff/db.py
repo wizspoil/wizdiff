@@ -21,8 +21,11 @@ CREATE TABLE IF NOT EXISTS VersionedFileInfo (
 );
 
 CREATE TABLE IF NOT EXISTS WadFileInfo (
+    file_offset INTEGER,
     crc INTEGER,
     size_ INTEGER,
+    compressed_size INTEGER,
+    is_compressed BOOLEAN,
     revision TEXT,
     name TEXT,
     wad_name TEXT,
@@ -53,15 +56,28 @@ class WizDiffDatabase:
         if date is None:
             date = datetime.utcnow()
 
-        self._connection.execute("INSERT INTO RevisionInfo (revision_name, date_) VALUES (?, ?);", (name, date))
+        self._connection.execute(
+            "INSERT INTO RevisionInfo (revision_name, date_) VALUES (?, ?);",
+            (name, date),
+        )
+        self.commit()
+
+    def delete_revision_info(self, name: str):
+        self._connection.execute(
+            "DELETE FROM RevisionInfo WHERE revision_name is (?);", (name,)
+        )
         self.commit()
 
     def get_latest_revision(self) -> Optional[str]:
-        cur = self._connection.execute("SELECT revision_name FROM RevisionInfo ORDER BY date_ DESC;")
+        cur = self._connection.execute(
+            "SELECT revision_name FROM RevisionInfo ORDER BY date_ DESC;"
+        )
         return cur.fetchone()
 
     def check_if_new_revision(self, name: str):
-        cur = self._connection.execute("SELECT * FROM RevisionInfo WHERE revision_name = ?;", (name,))
+        cur = self._connection.execute(
+            "SELECT * FROM RevisionInfo WHERE revision_name = ?;", (name,)
+        )
         return cur.fetchone() is None
 
     def add_versioned_file_info(self, crc: int, size: int, revision: str, name: str):
@@ -76,7 +92,15 @@ class WizDiffDatabase:
             (crc, size, revision, name),
         )
 
-    def check_if_versioned_file_updated(self, new_crc: int, new_size: int, old_revision: str, name: str):
+    def delete_versioned_file_infos_with_revision(self, revision_name: str):
+        self._connection.execute(
+            "DELETE FROM VersionedFileInfo WHERE revision is (?);", (revision_name,)
+        )
+        self.commit()
+
+    def check_if_versioned_file_updated(
+        self, new_crc: int, new_size: int, old_revision: str, name: str
+    ):
         cur = self._connection.execute(
             "SELECT crc, size_ FROM VersionedFileInfo WHERE revision is (?) and name is (?);",
             (old_revision, name),
@@ -95,10 +119,21 @@ class WizDiffDatabase:
             return FileUpdateType.unchanged, (old_crc, old_size)
 
     def get_all_versioned_files_from_revision(self, revision: str) -> List[tuple]:
-        cur = self._connection.execute("SELECT * FROM VersionedFileInfo WHERE revision is (?);", (revision,))
+        cur = self._connection.execute(
+            "SELECT * FROM VersionedFileInfo WHERE revision is (?);", (revision,)
+        )
         return cur.fetchall()
 
-    def add_wad_file_info(self, crc: int, size: int, revision: str, file_name: str, wad_name: str):
+    def add_wad_file_info(
+        self,
+        crc: int,
+        size: int,
+        compressed_size: int,
+        is_compressed: bool,
+        revision: str,
+        file_name: str,
+        wad_name: str,
+    ):
         if size < 0:
             raise ValueError("Size cannot be negative")
 
@@ -109,12 +144,26 @@ class WizDiffDatabase:
             raise ValueError(f"Wad name cannot be empty")
 
         self._connection.execute(
-            "INSERT INTO WadFileInfo (crc, size_, revision, name, wad_name) VALUES (?, ?, ?, ?, ?);",
-            (crc, size, revision, file_name, wad_name),
+            "INSERT INTO WadFileInfo (crc, size_, compressed_size, is_compressed, revision, name, wad_name) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?);",
+            (crc, size, compressed_size, is_compressed, revision, file_name, wad_name),
         )
 
+    def delete_wad_file_infos_with_revision(self, revision_name: str):
+        self._connection.execute(
+            "DELETE FROM WadFileInfo WHERE revision is (?);", (revision_name,)
+        )
+        self.commit()
+
     # TODO: maybe merge this and check_if_versioned_file_updated together (past first line is duplicated)
-    def check_if_wad_file_updated(self, new_crc: int, new_size: int, old_revision: str, file_name: str, wad_name: str):
+    def check_if_wad_file_updated(
+        self,
+        new_crc: int,
+        new_size: int,
+        old_revision: str,
+        file_name: str,
+        wad_name: str,
+    ):
         cur = self._connection.execute(
             "SELECT crc, size_ FROM WadFileInfo WHERE revision is (?) and name is (?) and wad_name is (?);",
             (old_revision, file_name, wad_name),
@@ -131,6 +180,16 @@ class WizDiffDatabase:
 
         else:
             return FileUpdateType.unchanged, (old_crc, old_size)
+
+    def get_all_wad_files_from_wad_name_and_revision(
+        self, wad_name: str, revision: str
+    ):
+        cur = self._connection.execute(
+            "SELECT crc, size_, name, file_offset, compressed_size, is_compressed "
+            "FROM WadFileInfo WHERE revision is (?) and name is (?);",
+            (revision, wad_name),
+        )
+        return cur.fetchall()
 
     def commit(self):
         self._connection.commit()

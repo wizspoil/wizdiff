@@ -3,6 +3,7 @@ from io import SEEK_END
 from functools import cached_property
 from collections import defaultdict
 from pathlib import Path
+from typing import Union
 
 
 type_format_dict = {
@@ -127,23 +128,22 @@ def parse_record(data: TypedBytesReader, record_template):
         # for some reason I need to subtract 1?
         format_type = wiz_type_conversion[type_index - 1]
 
-        match format_type:
-            case "wstring":
-                # TODO: this works?
-                value = data.read_str("utf-16-le")
+        # TODO: 3.10 switch to match
+        if format_type == "wstring":
+            value = data.read_str("utf-16-le")
 
-            case "string":
-                value = data.read_str()
+        elif format_type == "string":
+            value = data.read_str()
 
-            case _:
-                value = data.read_typed(format_type)
+        else:
+            value = data.read_typed(format_type)
 
         record[name] = value
 
     return record
 
 
-def consume_data(reader: TypedBytesReader | TypedFileReader):
+def consume_data(reader: Union[TypedBytesReader, TypedFileReader]):
     records = defaultdict(list)
     current_record_template = None
     current_record_name = None
@@ -156,7 +156,9 @@ def consume_data(reader: TypedBytesReader | TypedFileReader):
             structure_marker = reader.read_typed("unsigned char")
 
             if structure_marker != 2:
-                raise RuntimeError(f"Got a structure marker of {structure_marker} instead of 2")
+                raise RuntimeError(
+                    f"Got a structure marker of {structure_marker} instead of 2"
+                )
 
             structure_type = reader.read_typed("unsigned char")
 
@@ -167,20 +169,27 @@ def consume_data(reader: TypedBytesReader | TypedFileReader):
             data = reader.read_data(data_size)
             typed_data = TypedBytesReader(data)
 
-            match structure_type:
-                case 1:
-                    current_record_name, current_record_template = parse_record_template(typed_data)
+            # TODO: 3.10 switch to match
+            if structure_type == 1:
+                current_record_name, current_record_template = parse_record_template(
+                    typed_data
+                )
 
-                case 2:
-                    if not current_record_template:
-                        raise RuntimeError("No record template to use for record")
+            elif structure_type == 2:
+                if not current_record_template:
+                    raise RuntimeError("No record template to use for record")
 
-                    records[current_record_name].append(parse_record(typed_data, current_record_template))
+                records[current_record_name].append(
+                    parse_record(typed_data, current_record_template)
+                )
+
+            else:
+                raise RuntimeError(f"Unknown structure type {structure_type}")
 
     return records
 
 
-def parse_records_from_file(to_parser: str | Path):
+def parse_records_from_file(to_parser: Union[str, Path]):
     to_parser = Path(to_parser)
 
     # TODO: does SEEK_END work with this?
