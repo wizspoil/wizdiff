@@ -26,7 +26,7 @@ JOURNAL_RETRIES = 10
 JOURNAL_SLEEP_TIME = 60
 
 
-DEBUG_REVISION = "test_revision"
+_DEBUG_REVISION = None
 
 
 class UpdateNotifier:
