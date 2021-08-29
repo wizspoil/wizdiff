@@ -36,7 +36,7 @@ class WebDriver:
 
         return _read_url(file_list_url_start), _read_url(base_url_start)
 
-    def get_url_data(self, url: str, *, data_range: tuple[int, int] = None) -> bytes:
+    def get_url_data(self, url: str, *, data_range: Tuple[int, int] = None) -> bytes:
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0"
         }
