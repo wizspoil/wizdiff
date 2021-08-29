@@ -26,6 +26,9 @@ JOURNAL_RETRIES = 10
 JOURNAL_SLEEP_TIME = 60
 
 
+DEBUG_REVISION = None
+
+
 class UpdateNotifier:
     def __init__(self, *, sleep_time: float = 3_600, delete_old_revisions: bool = True):
         self.sleep_time = sleep_time
@@ -101,6 +104,9 @@ class UpdateNotifier:
             if self.db.check_if_new_revision(revision):
                 self.new_revision(revision, file_list_url, base_url)
 
+            elif DEBUG_REVISION:
+                self.new_revision(DEBUG_REVISION, file_list_url, base_url)
+
             else:
                 logger.info(f"No new revision found")
 
@@ -130,8 +136,7 @@ class UpdateNotifier:
             old_revision, revision_name, file_list_url, base_url
         )
 
-        revision = get_revision_from_url(file_list_url)
-        self.add_revision(revision)
+        self.add_revision(revision_name)
 
         if self.delete_old_revisions:
             self.remove_revision(old_revision)
@@ -255,7 +260,9 @@ class UpdateNotifier:
                         self.notify_non_wad_file_update(delta)
 
                 else:
-                    logger.debug(f"Unchanged file {name}")
+                    if name.endswith(".wad"):
+                        # this is so the wad inner files are updated to the latest revision
+                        self.db.update_wad_file_infos_revision_with_wad_name(name, new_revision)
 
                 # need to be versioned even if unchanged
                 self.db.add_versioned_file_info(
@@ -355,6 +362,8 @@ class UpdateNotifier:
                 wad_name,
             )
 
+        self.db.commit()
+
         for inner_file in self.db.get_all_wad_files_from_wad_name_and_revision(wad_name, old_revision):
             if inner_file not in journal_crcs.keys():
                 deleted_inner_files.append(
@@ -409,6 +418,9 @@ class WebhookUpdateNotifier(UpdateNotifier):
         }
         to_send.update(json_fields)
 
+        if not to_send.get("username"):
+            to_send["username"] = "wizdiff"
+
         files = None
 
         if file:
@@ -436,7 +448,6 @@ class WebhookUpdateNotifier(UpdateNotifier):
 
     def notify_non_wad_file_update(self, delta: FileDelta):
         # TODO: 3.10 switch to match
-
         if (delta_type := type(delta)) is CreatedFileDelta:
             delta: CreatedFileDelta
             self.send_to_all_webhooks(
@@ -467,3 +478,6 @@ class WebhookUpdateNotifier(UpdateNotifier):
 
         else:
             raise RuntimeError(f"Unhandled delta type {delta_type}")
+
+    def notify_wad_file_update(self, delta: FileDelta):
+        self.send_to_all_webhooks(str(delta))

@@ -4,6 +4,8 @@ from socket import create_connection
 from typing import *
 
 import requests
+from loguru import logger
+
 
 JOURNAL_ENTRY = "<lll?ll"
 JOURNAL_ENTRY_SIZE = struct.calcsize(JOURNAL_ENTRY)
@@ -41,6 +43,8 @@ class WebDriver:
 
         if data_range:
             headers["Range"] = f"bytes={data_range[0]}-{data_range[1]}"
+
+        logger.debug(f"Getting url data of {url} with data range {data_range}")
 
         with self.session.get(url, headers=headers) as res:
             res.raise_for_status()

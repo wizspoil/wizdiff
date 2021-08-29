@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 
 import click
@@ -7,6 +8,8 @@ from .update_notifier import WebhookUpdateNotifier
 
 
 logger.enable("wizdiff")
+logger.remove(0)
+logger.add(sys.stdout, enqueue=True)
 
 
 @click.command()

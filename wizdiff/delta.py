@@ -73,7 +73,7 @@ class DeletedWadFileDelta(DeletedFileDelta):
     Delta of a deleted wad file
     """
 
-    deleted_inner_files = List[WadInnerFileInfo]
+    deleted_inner_files: List[WadInnerFileInfo]
 
 
 @dataclass
@@ -82,7 +82,7 @@ class CreatedWadFileDelta(CreatedFileDelta):
     Delta of a created wad file
     """
 
-    created_inner_files = List[WadInnerFileInfo]
+    created_inner_files: List[WadInnerFileInfo]
 
 
 @dataclass
@@ -91,6 +91,6 @@ class ChangedWadfileDelta(ChangedFileDelta):
     Delta of a changed wad file
     """
 
-    deleted_inner_files = List[WadInnerFileInfo]
-    created_inner_files = List[WadInnerFileInfo]
-    changed_inner_files = List[WadInnerFileInfo]
+    deleted_inner_files: List[WadInnerFileInfo]
+    created_inner_files: List[WadInnerFileInfo]
+    changed_inner_files: List[WadInnerFileInfo]

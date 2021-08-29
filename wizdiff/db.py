@@ -72,7 +72,12 @@ class WizDiffDatabase:
         cur = self._connection.execute(
             "SELECT revision_name FROM RevisionInfo ORDER BY date_ DESC;"
         )
-        return cur.fetchone()
+        res = cur.fetchone()
+
+        if res:
+            return res[0]
+
+        return None
 
     def check_if_new_revision(self, name: str):
         cur = self._connection.execute(
@@ -148,6 +153,13 @@ class WizDiffDatabase:
             "VALUES (?, ?, ?, ?, ?, ?, ?);",
             (crc, size, compressed_size, is_compressed, revision, file_name, wad_name),
         )
+
+    def update_wad_file_infos_revision_with_wad_name(self, wad_name: str, new_revision: str):
+        self._connection.execute(
+            "UPDATE WadFileInfo SET revision = (?) WHERE wad_name is (?);",
+            (new_revision, wad_name)
+        )
+        self.commit()
 
     def delete_wad_file_infos_with_revision(self, revision_name: str):
         self._connection.execute(
