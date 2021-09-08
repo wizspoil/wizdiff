@@ -91,3 +91,9 @@ class WebDriver:
             res[name] = (offset, crc, size, zsize, is_zip)
 
         return res
+
+
+if __name__ == "__main__":
+    driver = WebDriver()
+
+    print(driver.get_patch_urls())

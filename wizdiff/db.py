@@ -4,6 +4,8 @@ from functools import cached_property
 from datetime import datetime
 from enum import Enum
 
+from loguru import logger
+
 
 TABLE_SCRIPT = """
 CREATE TABLE IF NOT EXISTS RevisionInfo (
@@ -116,6 +118,8 @@ class WizDiffDatabase:
             return FileUpdateType.new, (None, None)
 
         old_crc, old_size = old_ver
+
+        # logger.debug(f"Checking if {name} updated {old_crc=} {new_crc=} {old_size=} {new_size=}")
 
         if old_crc != new_crc or old_size != new_size:
             return FileUpdateType.changed, (old_crc, old_size)

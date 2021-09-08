@@ -4,6 +4,7 @@ from functools import cached_property
 from collections import defaultdict
 from pathlib import Path
 from typing import Union
+from xml.etree import ElementTree
 
 
 type_format_dict = {
@@ -37,6 +38,9 @@ wiz_type_conversion = {
     9: "wstring",
     10: "short",
 }
+
+
+IGNORED = frozenset(("_TableList", "About"))
 
 
 class TypedReader:
@@ -202,3 +206,25 @@ def parse_records_from_file(to_parser: Union[str, Path]):
 def parse_records_from_bytes(data: bytes):
     reader = TypedBytesReader(data)
     return consume_data(reader)
+
+
+def parse_records_from_xml(data: bytes):
+    root = ElementTree.fromstring(data.decode())
+
+    records = []
+
+    for child in root:
+        if child.tag not in IGNORED:
+            # can be multiple records
+            for subchild in child:
+                record = {}
+                for subsubchild in subchild:
+                    if subsubchild.text and subsubchild.text.isnumeric():
+                        record[subsubchild.tag] = int(subsubchild.text)
+
+                    else:
+                        record[subsubchild.tag] = subsubchild.text
+
+                records.append(record)
+
+    return {"records": records}

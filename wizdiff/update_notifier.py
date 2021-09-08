@@ -20,16 +20,17 @@ from .delta import (
     WadInnerFileInfo,
 )
 
-from .dml_parser import parse_records_from_bytes
+from .dml_parser import parse_records_from_bytes, parse_records_from_xml
 
 JOURNAL_RETRIES = 10
 JOURNAL_SLEEP_TIME = 60
 
 
 class UpdateNotifier:
-    def __init__(self, *, sleep_time: float = 3_600, delete_old_revisions: bool = True):
+    def __init__(self, *, sleep_time: float = 3_600, delete_old_revisions: bool = True, use_xml_file_list: bool = True):
         self.sleep_time = sleep_time
         self.delete_old_revisions = delete_old_revisions
+        self.use_xml_file_list = use_xml_file_list
 
         self.db = WizDiffDatabase()
         self.webdriver = WebDriver()
@@ -119,8 +120,13 @@ class UpdateNotifier:
         self.db.delete_wad_file_infos_with_revision(name)
 
     def get_file_list_records(self, file_list_url: str):
-        file_list_data = self.webdriver.get_url_data(file_list_url)
-        return parse_records_from_bytes(file_list_data)
+        if self.use_xml_file_list:
+            file_list_data = self.webdriver.get_url_data(file_list_url.replace(".bin", ".xml"))
+            return parse_records_from_xml(file_list_data)
+
+        else:
+            file_list_data = self.webdriver.get_url_data(file_list_url)
+            return parse_records_from_bytes(file_list_data)
 
     def new_revision(self, revision_name: str, file_list_url: str, base_url: str):
         logger.info(f"New revision found: {revision_name}")
