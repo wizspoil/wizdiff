@@ -1,4 +1,5 @@
 import sys
+import asyncio
 from pathlib import Path
 
 import click
@@ -20,14 +21,17 @@ def main(sleep_time, webhook, thread):
     """
     wizdiff
     """
-    update_handler = WebhookUpdateNotifier([webhook], thread, sleep_time=sleep_time)
+    async def _main():
+        update_handler = WebhookUpdateNotifier([webhook], thread, sleep_time=sleep_time)
 
-    if not Path("wizdiff.db").exists():
-        # add initial data to compare
-        click.echo("No database found creating a new one")
-        update_handler.init_db()
+        if not Path("wizdiff.db").exists():
+            # add initial data to compare
+            click.echo("No database found creating a new one")
+            await update_handler.init_db()
 
-    update_handler.update_loop()
+        await update_handler.update_loop()
+
+    asyncio.run(_main())
 
 
 if __name__ == "__main__":

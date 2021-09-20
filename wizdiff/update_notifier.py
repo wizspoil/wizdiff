@@ -1,9 +1,9 @@
-import time
+import asyncio
 from datetime import datetime
 from typing import List, Tuple
 from gzip import BadGzipFile
 
-import requests
+import aiohttp
 from loguru import logger
 
 from .utils import get_revision_from_url
@@ -35,11 +35,11 @@ class UpdateNotifier:
         self.db = WizDiffDatabase()
         self.webdriver = WebDriver()
 
-    def _get_wad_journal(self, wad_url: str):
+    async def _get_wad_journal(self, wad_url: str):
         for _ in range(JOURNAL_RETRIES):
             try:
-                return self.webdriver.get_wad_journal_crcs(wad_url)
-            except requests.exceptions.HTTPError as error:
+                return await self.webdriver.get_wad_journal_crcs(wad_url)
+            except aiohttp.ClientResponseError as error:
                 logger.info(f"Got non-200 error code {error}")
             except BadGzipFile as error:
                 logger.debug(
@@ -47,18 +47,18 @@ class UpdateNotifier:
                 )
 
             logger.info(f"Retrying {wad_url} in {JOURNAL_SLEEP_TIME} seconds")
-            time.sleep(JOURNAL_SLEEP_TIME)
+            await asyncio.sleep(JOURNAL_SLEEP_TIME)
 
         raise ValueError(f"Could not fetch journal for {wad_url}")
 
-    def init_db(self):
+    async def init_db(self):
         self.db.init_database()
-        file_list_url, base_url = self.webdriver.get_patch_urls()
+        file_list_url, base_url = await self.webdriver.get_patch_urls()
         revision = get_revision_from_url(file_list_url)
         self.add_revision(revision)
         self._fill_db(file_list_url, base_url, revision)
 
-    def _fill_db(self, file_list_url: str, base_url: str, revision: str):
+    async def _fill_db(self, file_list_url: str, base_url: str, revision: str):
         file_list_records = self.get_file_list_records(file_list_url)
 
         for table_name, records in file_list_records.items():
@@ -77,7 +77,7 @@ class UpdateNotifier:
                 # wad archive
                 if name.endswith(".wad"):
                     wad_url = base_url + "/" + name
-                    journal_crcs = self._get_wad_journal(wad_url)
+                    journal_crcs = await self._get_wad_journal(wad_url)
 
                     for inner_file, (file_offset, crc, size, compressed_size, is_compressed) in journal_crcs.items():
                         logger.debug(f"Filling db with wad inner file {inner_file}")
@@ -95,9 +95,9 @@ class UpdateNotifier:
 
         self.db.commit()
 
-    def update_loop(self):
+    async def update_loop(self):
         while True:
-            file_list_url, base_url = self.webdriver.get_patch_urls()
+            file_list_url, base_url = await self.webdriver.get_patch_urls()
             revision = get_revision_from_url(file_list_url)
 
             if self.db.check_if_new_revision(revision):
@@ -107,7 +107,7 @@ class UpdateNotifier:
                 logger.info(f"No new revision found")
 
             logger.info(f"Sleeping for {self.sleep_time} seconds")
-            time.sleep(self.sleep_time)
+            await asyncio.sleep(self.sleep_time)
 
     def add_revision(self, name: str):
         logger.info(f"Adding revision {name}")
@@ -119,13 +119,13 @@ class UpdateNotifier:
         self.db.delete_versioned_file_infos_with_revision(name)
         self.db.delete_wad_file_infos_with_revision(name)
 
-    def get_file_list_records(self, file_list_url: str):
+    async def get_file_list_records(self, file_list_url: str):
         if self.use_xml_file_list:
-            file_list_data = self.webdriver.get_url_data(file_list_url.replace(".bin", ".xml"))
+            file_list_data = await self.webdriver.get_url_data(file_list_url.replace(".bin", ".xml"))
             return parse_records_from_xml(file_list_data)
 
         else:
-            file_list_data = self.webdriver.get_url_data(file_list_url)
+            file_list_data = await self.webdriver.get_url_data(file_list_url)
             return parse_records_from_bytes(file_list_data)
 
     def new_revision(self, revision_name: str, file_list_url: str, base_url: str):
@@ -401,91 +401,3 @@ class UpdateNotifier:
 
     def notify_wad_file_update(self, delta: FileDelta):
         pass
-
-
-class WebhookUpdateNotifier(UpdateNotifier):
-    def __init__(self, webhook_urls: List[str], thread_id: int = None, **kwargs):
-        super().__init__(**kwargs)
-        self.webhook_urls = webhook_urls
-        self.thread_id = thread_id
-
-    def send_to_webhook(
-            self,
-            webhook_url,
-            content: str,
-            *,
-            file: Tuple[str, bytes] = None,
-            params: dict = None,
-            **json_fields,
-    ):
-        """
-        file is a tuple of file name and file data
-        """
-        to_send = {
-            "content": content,
-        }
-        to_send.update(json_fields)
-
-        if not to_send.get("username"):
-            to_send["username"] = "wizdiff"
-
-        files = None
-
-        if file:
-            files = [file]
-
-        if self.thread_id:
-            if not params:
-                params = {}
-
-            params["thread_id"] = self.thread_id
-
-        requests.post(
-            webhook_url,
-            json=to_send,
-            files=files,
-            params=params,
-        )
-
-    def send_to_all_webhooks(self, *args, **kwargs):
-        for webhook_url in self.webhook_urls:
-            self.send_to_webhook(webhook_url, *args, **kwargs)
-
-    def notify_revision_update(self, revision: str):
-        self.send_to_all_webhooks(f"New revision {revision} found")
-
-    def notify_non_wad_file_update(self, delta: FileDelta):
-        # TODO: 3.10 switch to match
-        if (delta_type := type(delta)) is CreatedFileDelta:
-            delta: CreatedFileDelta
-            self.send_to_all_webhooks(
-                f"New file {delta.name} found; download at: {delta.url}"
-            )
-
-        elif delta_type is ChangedFileDelta:
-            delta: ChangedFileDelta
-            message = f"Changed file {delta.name} found; "
-
-            if delta.old_size > delta.new_size:
-                message += f"{delta.old_size - delta.new_size} bytes smaller; "
-
-            elif delta.old_size < delta.new_size:
-                message += f"{delta.new_size - delta.old_size} bytes larger; "
-
-            # crc change
-            else:
-                message += "size unchanged (new crc); "
-
-            message += f"download at {delta.url}"
-
-            self.send_to_all_webhooks(message)
-
-        elif delta_type is DeletedFileDelta:
-            delta: DeletedFileDelta
-            self.send_to_all_webhooks(f"File {delta.name} was deleted")
-
-        else:
-            raise RuntimeError(f"Unhandled delta type {delta_type}")
-
-    def notify_wad_file_update(self, delta: FileDelta):
-        self.send_to_all_webhooks(str(delta))

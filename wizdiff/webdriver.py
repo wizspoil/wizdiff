@@ -1,9 +1,9 @@
+import asyncio
 import struct
 import gzip
-from socket import create_connection
-from typing import *
+from typing import Tuple
 
-import requests
+import aiohttp
 from loguru import logger
 
 
@@ -13,14 +13,17 @@ JOURNAL_ENTRY_SIZE = struct.calcsize(JOURNAL_ENTRY)
 
 class WebDriver:
     def __init__(self):
-        self.session = requests.Session()
+        self.session = aiohttp.ClientSession()
 
     @staticmethod
-    def get_patch_urls() -> Tuple[str, str]:
-        with create_connection(("patch.us.wizard101.com", 12500)) as socket:
-            socket.send(b"\x0D\xF0\x24\x00\x00\x00\x00\x00\x08\x01\x20" + bytes(29))
-            socket.recv(4096)  # session offer or whatever
-            data = socket.recv(4096)
+    async def get_patch_urls() -> Tuple[str, str]:
+        reader, writer = await asyncio.open_connection("patch.us.wizard101.com", 12500)
+
+        writer.write(b"\x0D\xF0\x24\x00\x00\x00\x00\x00\x08\x01\x20" + bytes(29))
+        await reader.read(4096)  # session offer or whatever
+
+        data = await reader.read(4096)
+        writer.close()
 
         def _read_url(start: int):
             str_len_data = data[start : start + 2]
@@ -36,7 +39,7 @@ class WebDriver:
 
         return _read_url(file_list_url_start), _read_url(base_url_start)
 
-    def get_url_data(self, url: str, *, data_range: Tuple[int, int] = None) -> bytes:
+    async def get_url_data(self, url: str, *, data_range: Tuple[int, int] = None) -> bytes:
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0"
         }
@@ -46,13 +49,13 @@ class WebDriver:
 
         logger.debug(f"Getting url data of {url} with data range {data_range}")
 
-        with self.session.get(url, headers=headers) as res:
+        async with self.session.get(url, headers=headers) as res:
             res.raise_for_status()
-            return res.content
+            return await res.content.read()
 
-    def get_wad_journal_crcs(self, wad_url: str) -> dict:
+    async def get_wad_journal_crcs(self, wad_url: str) -> dict:
         # .hdr.gz = header gzipped
-        wad_header_data = self.get_url_data(wad_url + ".hdr.gz")
+        wad_header_data = await self.get_url_data(wad_url + ".hdr.gz")
 
         try:
             wad_header_data = gzip.decompress(wad_header_data)
@@ -91,9 +94,3 @@ class WebDriver:
             res[name] = (offset, crc, size, zsize, is_zip)
 
         return res
-
-
-if __name__ == "__main__":
-    driver = WebDriver()
-
-    print(driver.get_patch_urls())
