@@ -9,9 +9,7 @@
     print(f"{db.check_if_versioned_file_updated(11, 10, 'test_revision', 'new_file.wad')=}")
 """
 
-from sqlite3 import IntegrityError
-
-from hypothesis import given, settings, Phase
+from hypothesis import given
 from hypothesis.strategies import text, integers
 
 from wizdiff.db import WizDiffDatabase, FileUpdateType

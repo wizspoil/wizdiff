@@ -6,7 +6,6 @@ from typing import Tuple
 import aiohttp
 from loguru import logger
 
-
 JOURNAL_ENTRY = "<lll?ll"
 JOURNAL_ENTRY_SIZE = struct.calcsize(JOURNAL_ENTRY)
 
@@ -26,10 +25,10 @@ class WebDriver:
         writer.close()
 
         def _read_url(start: int):
-            str_len_data = data[start : start + 2]
+            str_len_data = data[start: start + 2]
             str_len = struct.unpack("<H", str_len_data)[0]
 
-            str_data = data[start + 2 : start + 2 + str_len]
+            str_data = data[start + 2: start + 2 + str_len]
 
             return str_data.decode()
 
@@ -76,19 +75,16 @@ class WebDriver:
 
         for _ in range(file_count):
             journal_entry_data = wad_header_data[
-                data_offset : data_offset + JOURNAL_ENTRY_SIZE
-            ]
+                                 data_offset: data_offset + JOURNAL_ENTRY_SIZE
+                                 ]
             offset, size, zsize, is_zip, crc, name_length = struct.unpack(
                 JOURNAL_ENTRY, journal_entry_data
             )
 
-            name_data = wad_header_data[
-                data_offset
-                + JOURNAL_ENTRY_SIZE : data_offset
-                + JOURNAL_ENTRY_SIZE
-                + name_length
-            ]
+            name_start = data_offset + JOURNAL_ENTRY_SIZE
+            name_data = wad_header_data[name_start: name_start + name_length]
             name = name_data.decode()[:-1]
+
             data_offset += JOURNAL_ENTRY_SIZE + name_length
 
             res[name] = (offset, crc, size, zsize, is_zip)

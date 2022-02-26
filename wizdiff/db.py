@@ -4,8 +4,6 @@ from functools import cached_property
 from datetime import datetime
 from enum import Enum
 
-from loguru import logger
-
 
 TABLE_SCRIPT = """
 CREATE TABLE IF NOT EXISTS RevisionInfo (
