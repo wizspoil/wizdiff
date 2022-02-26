@@ -1,4 +1,5 @@
 import asyncio
+import zlib
 from datetime import datetime
 from typing import List, Tuple
 from gzip import BadGzipFile
@@ -389,6 +390,18 @@ class UpdateNotifier:
                 )
 
         return deleted_inner_files, created_inner_files, changed_inner_files
+
+    def get_wad_inner_file_data(self, wad_file_delta: FileDelta, inner_file: WadInnerFileInfo):
+        if inner_file.is_compressed:
+            data_range = (inner_file.file_offset, inner_file.file_offset + inner_file.compressed_size)
+        else:
+            data_range = (inner_file.file_offset, inner_file.file_offset + inner_file.size)
+
+        data = self.webdriver.get_url_data(wad_file_delta.url, data_range=data_range)
+
+        if inner_file.is_compressed:
+            return zlib.uncompress(data)
+        return data
 
     def notify_revision_update(self, revision: str):
         pass
