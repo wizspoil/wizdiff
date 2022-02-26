@@ -1,7 +1,6 @@
 import asyncio
 import zlib
 from datetime import datetime
-from typing import List, Tuple
 from gzip import BadGzipFile
 
 import aiohttp
@@ -57,10 +56,10 @@ class UpdateNotifier:
         file_list_url, base_url = await self.webdriver.get_patch_urls()
         revision = get_revision_from_url(file_list_url)
         self.add_revision(revision)
-        self._fill_db(file_list_url, base_url, revision)
+        await self._fill_db(file_list_url, base_url, revision)
 
     async def _fill_db(self, file_list_url: str, base_url: str, revision: str):
-        file_list_records = self.get_file_list_records(file_list_url)
+        file_list_records = await self.get_file_list_records(file_list_url)
 
         for table_name, records in file_list_records.items():
             # meta tables
@@ -327,7 +326,7 @@ class UpdateNotifier:
 
         -> (deleted, created, changed)
         """
-        journal_crcs = self._get_wad_journal(wad_url)
+        journal_crcs = await self._get_wad_journal(wad_url)
 
         deleted_inner_files = []
         created_inner_files = []
@@ -397,10 +396,10 @@ class UpdateNotifier:
         else:
             data_range = (inner_file.file_offset, inner_file.file_offset + inner_file.size)
 
-        data = self.webdriver.get_url_data(wad_file_delta.url, data_range=data_range)
+        data = await self.webdriver.get_url_data(wad_file_delta.url, data_range=data_range)
 
         if inner_file.is_compressed:
-            return zlib.uncompress(data)
+            return zlib.decompress(data)
         return data
 
     def notify_revision_update(self, revision: str):
