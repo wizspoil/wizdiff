@@ -1,4 +1,4 @@
-# install enviorment and packages with poetry
+# install environment and packages with poetry
 install:
   poetry install
 
@@ -6,7 +6,7 @@ install:
 update:
   poetry update
 
-# run wizdiff within it's enviorment
+# run wizdiff within it's environment
 run:
   poetry run wizdiff
 
