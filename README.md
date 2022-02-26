@@ -1,9 +1,10 @@
-# wizdiff
+# Wizdiff
+wizard101 version diffing automation tool
 
-# installation
+# Installation
 `pip install wizdiff`
 
-# just
+# Just
 this package uses [just](https://github.com/casey/just) for command running
 ```
 just install      # install enviorment and packages with poetry
