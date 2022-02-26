@@ -400,7 +400,7 @@ class UpdateNotifier:
         data = self.webdriver.get_url_data(wad_file_delta.url, data_range=data_range)
         
         if inner_file.is_compressed:
-            return zlib.uncompress(data)
+            return zlib.decompress(data)
         return data
 
     def notify_revision_update(self, revision: str):
