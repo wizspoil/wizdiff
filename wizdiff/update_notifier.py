@@ -120,7 +120,7 @@ class UpdateNotifier:
                 await self.new_revision(revision, file_list_url, base_url)
 
             else:
-                logger.info(f"No new revision found")
+                logger.info("No new revision found")
 
             logger.info(f"Sleeping for {self.sleep_time} seconds")
             await asyncio.sleep(self.sleep_time)

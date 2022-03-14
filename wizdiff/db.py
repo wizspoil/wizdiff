@@ -162,7 +162,7 @@ class WizDiffDatabase:
             raise ValueError("Name cannot be empty")
 
         if not wad_name:
-            raise ValueError(f"Wad name cannot be empty")
+            raise ValueError("Wad name cannot be empty")
 
         connection = await self._connection()
         await connection.execute(
