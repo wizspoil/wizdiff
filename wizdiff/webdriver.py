@@ -1,19 +1,19 @@
 import asyncio
 import struct
 import gzip
+import zlib
 from typing import Tuple
 
 import aiohttp
 from loguru import logger
+
+from .delta import FileDelta, WadInnerFileInfo
 
 JOURNAL_ENTRY = "<lll?ll"
 JOURNAL_ENTRY_SIZE = struct.calcsize(JOURNAL_ENTRY)
 
 
 class WebDriver:
-    def __init__(self):
-        self.session = aiohttp.ClientSession()
-
     @staticmethod
     async def get_patch_urls() -> Tuple[str, str]:
         reader, writer = await asyncio.open_connection("patch.us.wizard101.com", 12500)
@@ -48,17 +48,28 @@ class WebDriver:
 
         logger.debug(f"Getting url data of {url} with data range {data_range}")
 
+        # aiohttp is really lame, so we have to make a new session every time
         async with aiohttp.ClientSession() as session:
             async with session.get(url, headers=headers) as response:
-                if response.status == 206:
-                    logger.debug("Got partial content")
-
+                response.raise_for_status()
                 return await response.content.read()
 
-        # async with self.session.get(url, headers=headers) as res:
-        #     res.raise_for_status()
-        #     return await res.content.read()
+    async def get_wad_inner_file_data(self, wad_delta: FileDelta, inner_file: WadInnerFileInfo) -> bytes:
+        wad_url = wad_delta.url
 
+        if inner_file.is_compressed:
+            data_range = (inner_file.file_offset, inner_file.file_offset + inner_file.compressed_size)
+        else:
+            data_range = (inner_file.file_offset, inner_file.file_offset + inner_file.size)
+
+        data = await self.get_url_data(wad_url, data_range=data_range)
+
+        if inner_file.is_compressed:
+            return zlib.decompress(data)
+
+        return data
+
+    # TODO: 1.0 rename to get_wad_journal
     async def get_wad_journal_crcs(self, wad_url: str) -> dict:
         # .hdr.gz = header gzipped
         wad_header_data = await self.get_url_data(wad_url + ".hdr.gz")

@@ -2,6 +2,8 @@ import asyncio
 import zlib
 from datetime import datetime
 from gzip import BadGzipFile
+from pathlib import Path
+from typing import Union
 
 import aiohttp
 from loguru import logger
@@ -19,6 +21,7 @@ from .delta import (
     ChangedWadfileDelta,
     WadInnerFileInfo,
 )
+from .deserializer import Deserializer
 
 from .dml_parser import parse_records_from_bytes, parse_records_from_xml
 
@@ -27,13 +30,26 @@ JOURNAL_SLEEP_TIME = 60
 
 
 class UpdateNotifier:
-    def __init__(self, *, sleep_time: float = 3_600, delete_old_revisions: bool = True, use_xml_file_list: bool = True):
+    def __init__(
+            self,
+            *,
+            sleep_time: float = 3_600,
+            delete_old_revisions: bool = True,
+            use_xml_file_list: bool = True,
+            type_definitions_path: Union[str, Path] = None,
+    ):
         self.sleep_time = sleep_time
         self.delete_old_revisions = delete_old_revisions
         self.use_xml_file_list = use_xml_file_list
 
         self.db = WizDiffDatabase()
         self.webdriver = WebDriver()
+
+        if type_definitions_path is not None:
+            self.deserializer = Deserializer(type_definitions_path)
+
+        else:
+            self.deserializer = None
 
     async def _get_wad_journal(self, wad_url: str):
         for _ in range(JOURNAL_RETRIES):

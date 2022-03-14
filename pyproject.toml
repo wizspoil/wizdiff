@@ -6,10 +6,10 @@ authors = ["StarrFox <starrfox6312@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-click = "^8.0.1"
 loguru = "^0.6.0"
 aiohttp = "^3.8.1"
 aiosqlite = "^0.17.0"
+printrospector = {git = "https://gitlab.com/vale_/printrospector", rev = "main"}
 
 [tool.poetry.dev-dependencies]
 hypothesis = "^6.17.0"
