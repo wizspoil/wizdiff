@@ -51,6 +51,12 @@ class UpdateNotifier:
         else:
             self.deserializer = None
 
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_):
+        await self.db.close()
+
     async def _get_wad_journal(self, wad_url: str):
         for _ in range(JOURNAL_RETRIES):
             try:
