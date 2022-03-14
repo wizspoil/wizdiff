@@ -48,9 +48,16 @@ class WebDriver:
 
         logger.debug(f"Getting url data of {url} with data range {data_range}")
 
-        async with self.session.get(url, headers=headers) as res:
-            res.raise_for_status()
-            return await res.content.read()
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as response:
+                if response.status == 206:
+                    logger.debug("Got partial content")
+
+                return await response.content.read()
+
+        # async with self.session.get(url, headers=headers) as res:
+        #     res.raise_for_status()
+        #     return await res.content.read()
 
     async def get_wad_journal_crcs(self, wad_url: str) -> dict:
         # .hdr.gz = header gzipped

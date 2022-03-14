@@ -52,10 +52,10 @@ class UpdateNotifier:
         raise ValueError(f"Could not fetch journal for {wad_url}")
 
     async def init_db(self):
-        self.db.init_database()
+        await self.db.init_database()
         file_list_url, base_url = await self.webdriver.get_patch_urls()
         revision = get_revision_from_url(file_list_url)
-        self.add_revision(revision)
+        await self.add_revision(revision)
         await self._fill_db(file_list_url, base_url, revision)
 
     async def _fill_db(self, file_list_url: str, base_url: str, revision: str):
@@ -70,7 +70,7 @@ class UpdateNotifier:
                 name = record["SrcFileName"]
                 logger.debug(f"Filling db with versioned file {name}")
 
-                self.db.add_versioned_file_info(
+                await self.db.add_versioned_file_info(
                     record["CRC"], record["Size"], revision, name
                 )
 
@@ -82,7 +82,7 @@ class UpdateNotifier:
                     for inner_file, (file_offset, crc, size, compressed_size, is_compressed) in journal_crcs.items():
                         logger.debug(f"Filling db with wad inner file {inner_file}")
 
-                        self.db.add_wad_file_info(
+                        await self.db.add_wad_file_info(
                             file_offset,
                             crc,
                             size,
@@ -93,15 +93,15 @@ class UpdateNotifier:
                             name,
                         )
 
-        self.db.commit()
+        await self.db.commit()
 
     async def update_loop(self):
         while True:
             file_list_url, base_url = await self.webdriver.get_patch_urls()
             revision = get_revision_from_url(file_list_url)
 
-            if self.db.check_if_new_revision(revision):
-                self.new_revision(revision, file_list_url, base_url)
+            if await self.db.check_if_new_revision(revision):
+                await self.new_revision(revision, file_list_url, base_url)
 
             else:
                 logger.info(f"No new revision found")
@@ -109,15 +109,15 @@ class UpdateNotifier:
             logger.info(f"Sleeping for {self.sleep_time} seconds")
             await asyncio.sleep(self.sleep_time)
 
-    def add_revision(self, name: str):
+    async def add_revision(self, name: str):
         logger.info(f"Adding revision {name}")
-        self.db.add_revision_info(name, datetime.utcnow())
+        await self.db.add_revision_info(name, datetime.utcnow())
 
-    def remove_revision(self, name: str):
+    async def remove_revision(self, name: str):
         logger.info(f"Deleting old revision {name}")
-        self.db.delete_revision_info(name)
-        self.db.delete_versioned_file_infos_with_revision(name)
-        self.db.delete_wad_file_infos_with_revision(name)
+        await self.db.delete_revision_info(name)
+        await self.db.delete_versioned_file_infos_with_revision(name)
+        await self.db.delete_wad_file_infos_with_revision(name)
 
     async def get_file_list_records(self, file_list_url: str):
         if self.use_xml_file_list:
@@ -128,33 +128,33 @@ class UpdateNotifier:
             file_list_data = await self.webdriver.get_url_data(file_list_url)
             return parse_records_from_bytes(file_list_data)
 
-    def new_revision(self, revision_name: str, file_list_url: str, base_url: str):
+    async def new_revision(self, revision_name: str, file_list_url: str, base_url: str):
         logger.info(f"New revision found: {revision_name}")
-        self.notify_revision_update(revision_name)
+        await self.notify_revision_update(revision_name)
 
-        old_revision = self.db.get_latest_revision()
-        self.check_if_versioned_files_changed(
+        old_revision = await self.db.get_latest_revision()
+        await self.check_if_versioned_files_changed(
             old_revision, revision_name, file_list_url, base_url
         )
 
-        self.add_revision(revision_name)
+        await self.add_revision(revision_name)
 
         if self.delete_old_revisions:
-            self.remove_revision(old_revision)
+            await self.remove_revision(old_revision)
 
-    def check_if_versioned_files_changed(
+    async def check_if_versioned_files_changed(
             self,
             old_revision: str,
             new_revision: str,
             file_list_url: str,
             base_url: str,
     ):
-        records = self.get_file_list_records(file_list_url)
+        records = await self.get_file_list_records(file_list_url)
 
         if not old_revision:
             raise ValueError(f"Old revision must be a string not {type(old_revision)}")
 
-        last_revision_files = self.db.get_all_versioned_files_from_revision(
+        last_revision_files = await self.db.get_all_versioned_files_from_revision(
             old_revision
         )
 
@@ -173,7 +173,7 @@ class UpdateNotifier:
 
                 # logger.debug(f"Checking if {name} updated")
 
-                res, (old_crc, old_size) = self.db.check_if_versioned_file_updated(
+                res, (old_crc, old_size) = await self.db.check_if_versioned_file_updated(
                     record["CRC"], record["Size"], old_revision, name
                 )
 
@@ -182,7 +182,7 @@ class UpdateNotifier:
                 # TODO: 3.10 switch to match
                 if res is FileUpdateType.changed:
                     if name.endswith(".wad"):
-                        deleted, created, changed = self.check_if_wad_files_updated(
+                        deleted, created, changed = await self.check_if_wad_files_updated(
                             file_url,
                             name,
                             new_revision,
@@ -202,8 +202,8 @@ class UpdateNotifier:
                             changed_inner_files=changed,
                         )
 
-                        self.notify_all_file_update(delta)
-                        self.notify_wad_file_update(delta)
+                        await self.notify_all_file_update(delta)
+                        await self.notify_wad_file_update(delta)
 
                     else:
                         delta = ChangedFileDelta(
@@ -216,12 +216,12 @@ class UpdateNotifier:
                             old_size=old_size,
                         )
 
-                        self.notify_all_file_update(delta)
-                        self.notify_non_wad_file_update(delta)
+                        await self.notify_all_file_update(delta)
+                        await self.notify_non_wad_file_update(delta)
 
                 elif res is FileUpdateType.new:
                     if name.endswith(".wad"):
-                        deleted, created, changed = self.check_if_wad_files_updated(
+                        deleted, created, changed = await self.check_if_wad_files_updated(
                             file_url,
                             name,
                             new_revision,
@@ -244,8 +244,8 @@ class UpdateNotifier:
                             created_inner_files=created,
                         )
 
-                        self.notify_all_file_update(delta)
-                        self.notify_wad_file_update(delta)
+                        await self.notify_all_file_update(delta)
+                        await self.notify_wad_file_update(delta)
 
                     else:
                         delta = CreatedFileDelta(
@@ -258,29 +258,28 @@ class UpdateNotifier:
                             old_size=old_size,
                         )
 
-                        self.notify_all_file_update(delta)
-                        self.notify_non_wad_file_update(delta)
+                        await self.notify_all_file_update(delta)
+                        await self.notify_non_wad_file_update(delta)
 
                 else:
                     if name.endswith(".wad"):
                         unchanged_wads.append(name)
 
                 # need to be versioned even if unchanged
-                self.db.add_versioned_file_info(
+                await self.db.add_versioned_file_info(
                     record["CRC"], record["Size"], new_revision, record["SrcFileName"]
                 )
 
         # this is so the wad inner files are updated to the latest revision
-        self.db.mass_update_wad_file_infos_revision_with_wad_names(unchanged_wads, new_revision)
-
-        self.db.commit()
+        await self.db.mass_update_wad_file_infos_revision_with_wad_names(unchanged_wads, new_revision)
+        await self.db.commit()
 
         for crc, size, revision, name in last_revision_files:
             if name not in new_file_names:
                 if name.endswith(".wad"):
                     deleted_inner_files = []
 
-                    for inner_file in self.db.get_all_wad_files_from_wad_name_and_revision(name, old_revision):
+                    for inner_file in await self.db.get_all_wad_files_from_wad_name_and_revision(name, old_revision):
                         deleted_inner_files.append(
                             #  0 crc, 1 size_, 2 name, 3 file_offset, 4 compressed_size, 5 is_compressed
                             WadInnerFileInfo(
@@ -305,8 +304,8 @@ class UpdateNotifier:
                         deleted_inner_files=deleted_inner_files,
                     )
 
-                    self.notify_all_file_update(delta)
-                    self.notify_wad_file_update(delta)
+                    await self.notify_all_file_update(delta)
+                    await self.notify_wad_file_update(delta)
 
                 else:
                     delta = DeletedFileDelta(
@@ -317,10 +316,10 @@ class UpdateNotifier:
                         old_size=size,
                     )
 
-                    self.notify_all_file_update(delta)
-                    self.notify_non_wad_file_update(delta)
+                    await self.notify_all_file_update(delta)
+                    await self.notify_non_wad_file_update(delta)
 
-    def check_if_wad_files_updated(self, wad_url: str, wad_name: str, revision_name: str, old_revision: str):
+    async def check_if_wad_files_updated(self, wad_url: str, wad_name: str, revision_name: str, old_revision: str):
         """
         only called on wads that are created or changed
 
@@ -333,7 +332,13 @@ class UpdateNotifier:
         changed_inner_files = []
 
         for inner_file, (file_offset, crc, size, compressed_size, is_compressed) in journal_crcs.items():
-            res, (old_crc, old_size) = self.db.check_if_wad_file_updated(crc, size, old_revision, inner_file, wad_name)
+            res, (old_crc, old_size) = await self.db.check_if_wad_file_updated(
+                crc,
+                size,
+                old_revision,
+                inner_file,
+                wad_name
+            )
 
             inner_file_info = WadInnerFileInfo(
                 name=inner_file,
@@ -358,7 +363,7 @@ class UpdateNotifier:
             else:
                 pass
 
-            self.db.add_wad_file_info(
+            await self.db.add_wad_file_info(
                 file_offset,
                 crc,
                 size,
@@ -369,9 +374,9 @@ class UpdateNotifier:
                 wad_name,
             )
 
-        self.db.commit()
+        await self.db.commit()
 
-        for inner_file in self.db.get_all_wad_files_from_wad_name_and_revision(wad_name, old_revision):
+        for inner_file in await self.db.get_all_wad_files_from_wad_name_and_revision(wad_name, old_revision):
             if inner_file not in journal_crcs.keys():
                 deleted_inner_files.append(
                     #  0 crc, 1 size_, 2 name, 3 file_offset, 4 compressed_size, 5 is_compressed
@@ -390,7 +395,7 @@ class UpdateNotifier:
 
         return deleted_inner_files, created_inner_files, changed_inner_files
 
-    def get_wad_inner_file_data(self, wad_file_delta: FileDelta, inner_file: WadInnerFileInfo):
+    async def get_wad_inner_file_data(self, wad_file_delta: FileDelta, inner_file: WadInnerFileInfo):
         if inner_file.is_compressed:
             data_range = (inner_file.file_offset, inner_file.file_offset + inner_file.compressed_size)
         else:
@@ -402,14 +407,14 @@ class UpdateNotifier:
             return zlib.decompress(data)
         return data
 
-    def notify_revision_update(self, revision: str):
+    async def notify_revision_update(self, revision: str):
         pass
 
-    def notify_all_file_update(self, delta: FileDelta):
+    async def notify_all_file_update(self, delta: FileDelta):
         pass
 
-    def notify_non_wad_file_update(self, delta: FileDelta):
+    async def notify_non_wad_file_update(self, delta: FileDelta):
         pass
 
-    def notify_wad_file_update(self, delta: FileDelta):
+    async def notify_wad_file_update(self, delta: FileDelta):
         pass
