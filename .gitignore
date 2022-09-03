@@ -133,3 +133,6 @@ dmypy.json
 *.db-journal
 
 local_tests/
+
+scratch.py
+

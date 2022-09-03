@@ -6,7 +6,6 @@ class Delta:
     """
     Base delta class
     """
-
     pass
 
 
@@ -15,7 +14,6 @@ class FileDelta(Delta):
     """
     Delta for file changes
     """
-
     name: str
     revision: str
     url: str
@@ -26,7 +24,6 @@ class DeletedFileDelta(FileDelta):
     """
     Delta of a deleted file
     """
-
     old_crc: int
     old_size: int
 
@@ -36,7 +33,6 @@ class CreatedFileDelta(FileDelta):
     """
     Delta of a created file
     """
-
     new_crc: int
     new_size: int
     old_crc: int
@@ -48,7 +44,6 @@ class ChangedFileDelta(FileDelta):
     """
     Delta of a changed file
     """
-
     new_crc: int
     new_size: int
     old_crc: int
@@ -73,7 +68,6 @@ class DeletedWadFileDelta(DeletedFileDelta):
     """
     Delta of a deleted wad file
     """
-
     deleted_inner_files: List[WadInnerFileInfo]
 
 
@@ -82,7 +76,6 @@ class CreatedWadFileDelta(CreatedFileDelta):
     """
     Delta of a created wad file
     """
-
     created_inner_files: List[WadInnerFileInfo]
 
 
@@ -91,7 +84,6 @@ class ChangedWadfileDelta(ChangedFileDelta):
     """
     Delta of a changed wad file
     """
-
     deleted_inner_files: List[WadInnerFileInfo]
     created_inner_files: List[WadInnerFileInfo]
     changed_inner_files: List[WadInnerFileInfo]
